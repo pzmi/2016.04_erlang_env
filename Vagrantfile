@@ -1,3 +1,9 @@
+$prepare_user = <<SCRIPT
+mkdir -p /home/vagrant
+useradd -d /home/vagrant vagrant
+chown root:root /root
+SCRIPT
+
 $prepare_apt = <<SCRIPT
 wget http://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb && \
 dpkg -i erlang-solutions_1.0_all.deb && \
@@ -29,7 +35,7 @@ cd amoc && git checkout fix-for-erlang18
 SCRIPT
 
 $install_amoc = <<SCRIPT
-cd amoc
+cd /home/vagrant/amoc
 sed -i s/\-name/\-sname/g priv/vm.args
 cp /vagrant/files/app.config priv/app.config
 cp /vagrant/files/mongoose_simple_soe2016.erl scenarios/
@@ -68,6 +74,7 @@ nc -z -w10 173.16.1.100 5222 || echo "MongooseIM server not started..."
 SCRIPT
 
 def provision_with_shell(node)
+  node.vm.provision "prepare_user", type: "shell", inline: $prepare_user
   node.vm.provision "prepare_apt", type: "shell", inline: $prepare_apt
   node.vm.provision "packages", type: "shell", inline: $packages
   node.vm.provision "get_docker", type: "shell", inline: $get_docker
@@ -110,10 +117,15 @@ end
 
 Vagrant.configure(2) do |config|
   config.vm.box = "ubuntu/trusty64"
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = 4096
-    vb.cpus = 4
-    vb.linked_clone = true
+  config.vm.provider :digital_ocean do |provider, override|
+    override.ssh.private_key_path = '~/.ssh/vagrant/id_rsa'
+    override.vm.box = 'digital_ocean'
+    override.vm.box_url = "https://github.com/devopsgroup-io/vagrant-digitalocean/raw/master/box/digital_ocean.box"
+
+    provider.token = ENV['DO_TOKEN']
+    provider.image = 'ubuntu-14-04-x64'
+    provider.region = 'fra1'
+    provider.size = '4gb'
   end
 
   config.hostmanager.enabled = true
